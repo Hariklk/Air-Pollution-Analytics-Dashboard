@@ -1,0 +1,2147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>India Air Quality Index Dashboard | 1987-2015 Analysis</title>
+  <meta name="description"
+    content="Interactive AQI Dashboard for India - Explore SO2, NO2, RSPM, SPM and PM2.5 pollution trends across 37 Indian states from 1987 to 2015." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #030912;
+      --bg2: #071220;
+      --card: #0c1d36;
+      --glass: rgba(12, 29, 54, .75);
+      --blue: #3b82f6;
+      --cyan: #06b6d4;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --purple: #8b5cf6;
+      --orange: #f97316;
+      --tp: #f1f5f9;
+      --ts: #94a3b8;
+      --tm: #64748b;
+      --bdr: rgba(59, 130, 246, .12)
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    html {
+      scroll-behavior: smooth
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--tp);
+      min-height: 100vh;
+      overflow-x: hidden
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at 15% 15%, rgba(59, 130, 246, .07) 0%, transparent 55%), radial-gradient(ellipse at 85% 85%, rgba(6, 182, 212, .07) 0%, transparent 55%);
+      pointer-events: none;
+      z-index: 0
+    }
+
+    /* Loader */
+    #loader {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      gap: 20px;
+      transition: opacity .5s ease
+    }
+
+    .lorb {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      animation: lp 1.5s ease-in-out infinite;
+      box-shadow: 0 0 60px rgba(59, 130, 246, .5)
+    }
+
+    @keyframes lp {
+
+      0%,
+      100% {
+        transform: scale(1)
+      }
+
+      50% {
+        transform: scale(1.12)
+      }
+    }
+
+    .ltit {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.6rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text
+    }
+
+    .pbw {
+      width: 340px;
+      height: 5px;
+      background: rgba(59, 130, 246, .1);
+      border-radius: 999px;
+      overflow: hidden
+    }
+
+    .pbf {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #06b6d4);
+      border-radius: 999px;
+      width: 0%;
+      transition: width .4s ease;
+      box-shadow: 0 0 10px rgba(59, 130, 246, .7)
+    }
+
+    #lmsg {
+      font-size: .82rem;
+      color: var(--tm);
+      letter-spacing: .05em
+    }
+
+    /* Portfolio Banner */
+    .portfolio-banner {
+      background: linear-gradient(135deg, rgba(59, 130, 246, .1), rgba(6, 182, 212, .08));
+      border-bottom: 1px solid var(--bdr);
+      padding: 8px 2rem;
+      text-align: center;
+      position: relative;
+      z-index: 101;
+      overflow: hidden
+    }
+
+    .portfolio-banner::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(59, 130, 246, .06), transparent);
+      animation: shimmer 3s ease-in-out infinite
+    }
+
+    @keyframes shimmer {
+
+      0%,
+      100% {
+        transform: translateX(-100%)
+      }
+
+      50% {
+        transform: translateX(100%)
+      }
+    }
+
+    .portfolio-banner a {
+      color: #60a5fa;
+      text-decoration: none;
+      font-size: .82rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all .25s;
+      position: relative;
+      z-index: 1
+    }
+
+    .portfolio-banner a:hover {
+      color: #93c5fd;
+      transform: scale(1.02)
+    }
+
+    .portfolio-banner .arrow {
+      display: inline-block;
+      transition: transform .25s
+    }
+
+    .portfolio-banner a:hover .arrow {
+      transform: translateX(4px)
+    }
+
+    /* Header */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      background: rgba(3, 9, 18, .88);
+      border-bottom: 1px solid var(--bdr);
+      padding: 0 2rem
+    }
+
+    .hi {
+      max-width: 1640px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 62px
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--tp);
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1.1rem
+    }
+
+    .bico {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      box-shadow: 0 0 16px rgba(59, 130, 246, .4)
+    }
+
+    .nav {
+      display: flex;
+      gap: 2px
+    }
+
+    .nav a {
+      padding: 6px 13px;
+      border-radius: 7px;
+      font-size: .8rem;
+      font-weight: 500;
+      color: var(--tm);
+      text-decoration: none;
+      cursor: pointer;
+      transition: all .2s;
+      border: none;
+      background: transparent
+    }
+
+    .nav a:hover {
+      background: rgba(59, 130, 246, .12);
+      color: var(--blue)
+    }
+
+    .pcta {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 18px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      color: #fff;
+      font-weight: 700;
+      font-size: .82rem;
+      text-decoration: none;
+      transition: all .25s;
+      box-shadow: 0 0 20px rgba(59, 130, 246, .35)
+    }
+
+    .pcta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 35px rgba(59, 130, 246, .6)
+    }
+
+    /* Hero */
+    .hero {
+      max-width: 1640px;
+      margin: 0 auto;
+      padding: 3rem 2rem 1.5rem;
+      position: relative;
+      z-index: 1
+    }
+
+    .hbadge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 14px;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, .1);
+      border: 1px solid rgba(59, 130, 246, .25);
+      font-size: .73rem;
+      color: #60a5fa;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      letter-spacing: .07em;
+      text-transform: uppercase
+    }
+
+    .hero h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(1.9rem, 3.5vw, 3rem);
+      font-weight: 900;
+      line-height: 1.08;
+      margin-bottom: .9rem
+    }
+
+    .grad {
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text
+    }
+
+    .hsub {
+      font-size: .92rem;
+      color: var(--ts);
+      max-width: 660px;
+      line-height: 1.72;
+      margin-bottom: 1.5rem
+    }
+
+    .hstats {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap
+    }
+
+    .hsv {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text
+    }
+
+    .hsl {
+      font-size: .72rem;
+      color: var(--tm);
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      font-weight: 600
+    }
+
+    /* Filters */
+    .filters {
+      max-width: 1640px;
+      margin: 0 auto 1.8rem;
+      padding: 0 2rem;
+      position: relative;
+      z-index: 1
+    }
+
+    .fi {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 14px 18px;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--bdr);
+      border-radius: 14px
+    }
+
+    .fl {
+      font-size: .72rem;
+      color: var(--tm);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      white-space: nowrap
+    }
+
+    .fs {
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid var(--bdr);
+      color: var(--tp);
+      padding: 6px 28px 6px 10px;
+      border-radius: 7px;
+      font-size: .82rem;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all .2s;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2364748b' d='M5 7L1 2h8z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 9px center
+    }
+
+    .fs:hover,
+    .fs:focus {
+      border-color: var(--blue);
+      outline: none
+    }
+
+    .fs option {
+      background: var(--card);
+      color: var(--tp)
+    }
+
+    .fdiv {
+      width: 1px;
+      height: 24px;
+      background: var(--bdr)
+    }
+
+    .fb {
+      padding: 6px 14px;
+      border-radius: 7px;
+      border: 1px solid var(--bdr);
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s
+    }
+
+    .fba {
+      background: rgba(59, 130, 246, .14);
+      color: var(--blue)
+    }
+
+    .fba:hover {
+      background: rgba(59, 130, 246, .28);
+      border-color: var(--blue)
+    }
+
+    .fbr {
+      background: transparent;
+      color: var(--tm)
+    }
+
+    .fbr:hover {
+      background: rgba(255, 255, 255, .04);
+      color: var(--tp)
+    }
+
+    /* Main */
+    .main {
+      max-width: 1640px;
+      margin: 0 auto;
+      padding: 0 2rem 4rem;
+      position: relative;
+      z-index: 1
+    }
+
+    /* KPI Grid */
+    .kgrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px;
+      margin-bottom: 1.8rem
+    }
+
+    .kpi {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--bdr);
+      border-radius: 16px;
+      padding: 18px;
+      position: relative;
+      overflow: hidden;
+      transition: all .3s;
+      cursor: default
+    }
+
+    .kpi::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--kc), transparent);
+      opacity: .7
+    }
+
+    .kpi:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, .35)
+    }
+
+    .kico {
+      width: 40px;
+      height: 40px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      margin-bottom: 10px
+    }
+
+    .klbl {
+      font-size: .7rem;
+      color: var(--tm);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 3px
+    }
+
+    .kval {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.75rem;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 3px
+    }
+
+    .ksub {
+      font-size: .7rem;
+      color: var(--tm)
+    }
+
+    .kbdg {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: .7rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin-top: 5px
+    }
+
+    .br {
+      background: rgba(239, 68, 68, .15);
+      color: #f87171
+    }
+
+    .bg {
+      background: rgba(16, 185, 129, .15);
+      color: #34d399
+    }
+
+    .ba {
+      background: rgba(245, 158, 11, .15);
+      color: #fbbf24
+    }
+
+    /* Section headers */
+    .sh {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem
+    }
+
+    .st {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 9px
+    }
+
+    .sd {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      flex-shrink: 0
+    }
+
+    .stag {
+      font-size: .68rem;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, .1);
+      color: #60a5fa;
+      font-weight: 600;
+      border: 1px solid rgba(59, 130, 246, .18)
+    }
+
+    /* Chart cards grid */
+    .cg {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 14px;
+      margin-bottom: 1.8rem
+    }
+
+    .cc {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--bdr);
+      border-radius: 18px;
+      padding: 22px;
+      transition: all .3s
+    }
+
+    .cc:hover {
+      border-color: rgba(59, 130, 246, .22);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, .22)
+    }
+
+    .c8 {
+      grid-column: span 8
+    }
+
+    .c6 {
+      grid-column: span 6
+    }
+
+    .c4 {
+      grid-column: span 4
+    }
+
+    .c12 {
+      grid-column: span 12
+    }
+
+    .c5 {
+      grid-column: span 5
+    }
+
+    .c7 {
+      grid-column: span 7
+    }
+
+    .ch {
+      position: relative;
+      height: 280px
+    }
+
+    .cht {
+      height: 340px
+    }
+
+    .chs {
+      height: 220px
+    }
+
+    /* Pollutant cards */
+    .pg {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 1.8rem
+    }
+
+    .pc {
+      background: var(--glass);
+      border: 1px solid var(--bdr);
+      border-radius: 14px;
+      padding: 17px 14px;
+      text-align: center;
+      transition: all .3s;
+      cursor: pointer
+    }
+
+    .pc:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 0 20px rgba(59, 130, 246, .15)
+    }
+
+    .pn {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 3px
+    }
+
+    .pf {
+      font-size: .68rem;
+      color: var(--tm);
+      margin-bottom: 10px
+    }
+
+    .pa {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.55rem;
+      font-weight: 800
+    }
+
+    .pu {
+      font-size: .68rem;
+      color: var(--tm)
+    }
+
+    .pb {
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .06);
+      margin-top: 10px;
+      overflow: hidden
+    }
+
+    .pbf2 {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 1.2s ease
+    }
+
+    /* Rankings */
+    .rl {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      max-height: 360px;
+      overflow-y: auto;
+      padding-right: 4px
+    }
+
+    .rl::-webkit-scrollbar {
+      width: 4px
+    }
+
+    .rl::-webkit-scrollbar-thumb {
+      background: rgba(59, 130, 246, .25);
+      border-radius: 999px
+    }
+
+    .ri {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 11px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .02);
+      border: 1px solid rgba(255, 255, 255, .04);
+      transition: all .2s
+    }
+
+    .ri:hover {
+      background: rgba(59, 130, 246, .08)
+    }
+
+    .rnum {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .7rem;
+      font-weight: 800;
+      flex-shrink: 0
+    }
+
+    .rn {
+      flex: 1;
+      font-size: .8rem;
+      font-weight: 500
+    }
+
+    .rbw {
+      width: 70px;
+      height: 4px;
+      background: rgba(255, 255, 255, .06);
+      border-radius: 999px;
+      overflow: hidden;
+      flex-shrink: 0
+    }
+
+    .rb {
+      height: 100%;
+      border-radius: 999px
+    }
+
+    .rv {
+      font-size: .8rem;
+      font-weight: 700;
+      color: var(--cyan);
+      width: 36px;
+      text-align: right
+    }
+
+    /* Insights grid */
+    .ig {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 14px;
+      margin-bottom: 1.8rem
+    }
+
+    .ic {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--bdr);
+      border-radius: 14px;
+      padding: 18px;
+      display: flex;
+      gap: 14px;
+      transition: all .3s
+    }
+
+    .ic:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, .25);
+      border-color: rgba(59, 130, 246, .25)
+    }
+
+    .iico {
+      width: 46px;
+      height: 46px;
+      border-radius: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0
+    }
+
+    .ib h4 {
+      font-family: 'Outfit', sans-serif;
+      font-size: .9rem;
+      font-weight: 700;
+      margin-bottom: 5px
+    }
+
+    .ib p {
+      font-size: .78rem;
+      color: var(--ts);
+      line-height: 1.65
+    }
+
+    .ib strong {
+      color: var(--tp)
+    }
+
+    /* Table */
+    .tw {
+      overflow-x: auto;
+      border-radius: 14px;
+      border: 1px solid var(--bdr)
+    }
+
+    .tbl {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .79rem
+    }
+
+    .tbl thead th {
+      background: rgba(59, 130, 246, .07);
+      padding: 11px 14px;
+      text-align: left;
+      font-weight: 700;
+      color: var(--tm);
+      border-bottom: 1px solid var(--bdr);
+      white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-size: .68rem
+    }
+
+    .tbl tbody tr:hover {
+      background: rgba(59, 130, 246, .05)
+    }
+
+    .tbl tbody td {
+      padding: 9px 14px;
+      border-bottom: 1px solid rgba(59, 130, 246, .04);
+      color: var(--ts)
+    }
+
+    /* AQI pills */
+    .aqip {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: .69rem;
+      font-weight: 700
+    }
+
+    .ag {
+      background: rgba(16, 185, 129, .15);
+      color: #34d399
+    }
+
+    .am {
+      background: rgba(245, 158, 11, .15);
+      color: #fbbf24
+    }
+
+    .au {
+      background: rgba(249, 115, 22, .15);
+      color: #fb923c
+    }
+
+    .avu {
+      background: rgba(239, 68, 68, .15);
+      color: #f87171
+    }
+
+    .ah {
+      background: rgba(139, 92, 246, .15);
+      color: #a78bfa
+    }
+
+    /* Summary section */
+    .sum {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--bdr);
+      border-radius: 22px;
+      padding: 36px;
+      margin-bottom: 1.8rem;
+      position: relative;
+      overflow: hidden
+    }
+
+    .sum::before {
+      content: '';
+      position: absolute;
+      top: -80px;
+      right: -80px;
+      width: 240px;
+      height: 240px;
+      background: radial-gradient(circle, rgba(59, 130, 246, .1) 0%, transparent 70%);
+      pointer-events: none
+    }
+
+    .sgrid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 36px;
+      align-items: start
+    }
+
+    .sl h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin-bottom: 10px
+    }
+
+    .sl p {
+      font-size: .84rem;
+      color: var(--ts);
+      line-height: 1.8;
+      margin-bottom: 10px
+    }
+
+    .stags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 14px
+    }
+
+    .sr {
+      display: flex;
+      flex-direction: column;
+      gap: 12px
+    }
+
+    .spec {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, .025);
+      border: 1px solid rgba(255, 255, 255, .05);
+      border-radius: 11px
+    }
+
+    .spec-ico {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0
+    }
+
+    .spec-l {
+      font-size: .68rem;
+      color: var(--tm);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-weight: 700
+    }
+
+    .spec-v {
+      font-size: .86rem;
+      color: var(--tp);
+      font-weight: 600
+    }
+
+    .pb3 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 15px 18px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(59, 130, 246, .15), rgba(6, 182, 212, .15));
+      border: 1px solid rgba(59, 130, 246, .28);
+      text-decoration: none;
+      color: var(--tp);
+      font-weight: 600;
+      transition: all .3s;
+      margin-top: 2px
+    }
+
+    .pb3:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(59, 130, 246, .2)
+    }
+
+    /* Year-over-year trend cards */
+    .yoy-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+      margin-bottom: 1.8rem
+    }
+
+    .yoy-card {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--bdr);
+      border-radius: 14px;
+      padding: 18px;
+      transition: all .3s
+    }
+
+    .yoy-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, .25)
+    }
+
+    .yoy-label {
+      font-size: .7rem;
+      color: var(--tm);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 6px
+    }
+
+    .yoy-val {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 800;
+      margin-bottom: 3px
+    }
+
+    .yoy-sub {
+      font-size: .72rem;
+      color: var(--ts)
+    }
+
+    .yoy-spark {
+      height: 40px;
+      margin-top: 8px
+    }
+
+    /* Heatmap placeholder */
+    .heatmap-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 3px;
+      margin-top: 10px
+    }
+
+    .heatmap-cell {
+      aspect-ratio: 1;
+      border-radius: 4px;
+      transition: all .2s;
+      cursor: default;
+      position: relative
+    }
+
+    .heatmap-cell:hover {
+      transform: scale(1.15);
+      z-index: 1
+    }
+
+    .heatmap-label {
+      font-size: .62rem;
+      color: var(--tm);
+      text-align: center;
+      font-weight: 600
+    }
+
+    .heatmap-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 3px
+    }
+
+    .heatmap-row-label {
+      font-size: .62rem;
+      color: var(--tm);
+      font-weight: 600;
+      width: 40px;
+      text-align: right;
+      flex-shrink: 0
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--bdr);
+      padding: 1.8rem 2rem
+    }
+
+    .foot {
+      max-width: 1640px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 14px
+    }
+
+    .fl2 {
+      font-size: .78rem;
+      color: var(--tm)
+    }
+
+    .fr {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      color: var(--blue);
+      font-weight: 600;
+      font-size: .86rem;
+      transition: all .2s
+    }
+
+    .fr:hover {
+      color: var(--cyan)
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg)
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(59, 130, 246, .28);
+      border-radius: 999px
+    }
+
+    /* Animations */
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    .fu {
+      animation: fadeUp .55s ease forwards;
+      opacity: 0
+    }
+
+    .fu1 {
+      animation-delay: .04s
+    }
+
+    .fu2 {
+      animation-delay: .09s
+    }
+
+    .fu3 {
+      animation-delay: .14s
+    }
+
+    .fu4 {
+      animation-delay: .2s
+    }
+
+    .fu5 {
+      animation-delay: .26s
+    }
+
+    @keyframes countUp {
+      from {
+        opacity: 0;
+        transform: translateY(8px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    .count-anim {
+      animation: countUp .4s ease forwards
+    }
+
+    /* Responsive */
+    @media(max-width:1100px) {
+
+      .c8,
+      .c7 {
+        grid-column: span 12
+      }
+
+      .c4,
+      .c5 {
+        grid-column: span 12
+      }
+
+      .c6 {
+        grid-column: span 12
+      }
+
+      .sgrid {
+        grid-template-columns: 1fr
+      }
+    }
+
+    @media(max-width:768px) {
+
+      .hero,
+      .main,
+      .filters {
+        padding-left: 1rem;
+        padding-right: 1rem
+      }
+
+      header {
+        padding: 0 1rem
+      }
+
+      .nav {
+        display: none
+      }
+
+      .portfolio-banner {
+        padding: 8px 1rem
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="loader">
+    <div class="lorb">🌬️</div>
+    <div class="ltit">India AQI Dashboard</div>
+    <div class="pbw">
+      <div class="pbf" id="pb"></div>
+    </div>
+    <div id="lmsg">Initializing…</div>
+  </div>
+
+  <!-- Portfolio Banner - Top -->
+  <div class="portfolio-banner">
+    <a href="https://hariportfolioo.xyz/" target="_blank" rel="noopener" id="hp0">
+      🚀 <strong>View My Portfolio</strong> — hariportfolioo.xyz <span class="arrow">→</span>
+    </a>
+  </div>
+
+  <header>
+    <div class="hi">
+      <a href="#" class="brand">
+        <div class="bico">🌍</div>India AQI Dashboard
+      </a>
+      <nav class="nav"><a onclick="goto('ov')">Overview</a><a onclick="goto('tr')">Trends</a><a
+          onclick="goto('st')">States</a><a onclick="goto('po')">Pollutants</a><a onclick="goto('ins')">Insights</a><a
+          onclick="goto('sm')">About</a></nav>
+      <a href="https://hariportfolioo.xyz/" target="_blank" rel="noopener" class="pcta" id="hp1">🚀 View Portfolio</a>
+    </div>
+  </header>
+
+  <div class="hero fu fu1" id="ov">
+    <div class="hbadge">📊 Interactive Analysis · India · 37 States</div>
+    <h1>India <span class="grad">Air Quality</span><br>Intelligence Dashboard</h1>
+    <p class="hsub">Explore 435,742+ air quality monitoring records spanning 1987–2015 across 37 Indian states and Union
+      Territories. Uncover pollution trends, seasonal patterns, state comparisons, and critical health insights.</p>
+    <div class="hstats">
+      <div>
+        <div class="hsv">435K+</div>
+        <div class="hsl">Data Records</div>
+      </div>
+      <div>
+        <div class="hsv">37</div>
+        <div class="hsl">States & UTs</div>
+      </div>
+      <div>
+        <div class="hsv">28 Yrs</div>
+        <div class="hsl">Historical Data</div>
+      </div>
+      <div>
+        <div class="hsv">5</div>
+        <div class="hsl">Pollutants</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="filters fu fu2">
+    <div class="fi">
+      <span class="fl">State</span><select class="fs" id="fSt">
+        <option value="all">All States</option>
+      </select>
+      <div class="fdiv"></div>
+      <span class="fl">Year</span><select class="fs" id="fYr">
+        <option value="all">All Years</option>
+      </select>
+      <div class="fdiv"></div>
+      <span class="fl">Area Type</span><select class="fs" id="fTy">
+        <option value="all">All Types</option>
+      </select>
+      <div class="fdiv"></div>
+      <span class="fl">Pollutant</span>
+      <select class="fs" id="fPo">
+        <option value="rspm">RSPM/PM10</option>
+        <option value="pm2_5">PM2.5</option>
+        <option value="so2">SO2</option>
+        <option value="no2">NO2</option>
+        <option value="spm">SPM</option>
+      </select>
+      <button class="fb fba" onclick="af()">✦ Apply</button>
+      <button class="fb fbr" onclick="rf()">↺ Reset</button>
+    </div>
+  </div>
+
+  <main class="main">
+    <!-- KPIs -->
+    <div class="kgrid fu fu3">
+      <div class="kpi" style="--kc:#3b82f6">
+        <div class="kico" style="background:rgba(59,130,246,.14)">📋</div>
+        <div class="klbl">Total Records</div>
+        <div class="kval" style="color:#3b82f6" id="kr">–</div>
+        <div class="ksub">Monitoring readings</div>
+      </div>
+      <div class="kpi" style="--kc:#06b6d4">
+        <div class="kico" style="background:rgba(6,182,212,.14)">🗺️</div>
+        <div class="klbl">States Covered</div>
+        <div class="kval" style="color:#06b6d4" id="ks">–</div>
+        <div class="ksub">States & Union Territories</div>
+      </div>
+      <div class="kpi" style="--kc:#8b5cf6">
+        <div class="kico" style="background:rgba(139,92,246,.14)">📍</div>
+        <div class="klbl">Cities Monitored</div>
+        <div class="kval" style="color:#8b5cf6" id="kc">–</div>
+        <div class="ksub">Unique locations</div>
+      </div>
+      <div class="kpi" style="--kc:#f59e0b">
+        <div class="kico" style="background:rgba(245,158,11,.14)">📅</div>
+        <div class="klbl">Years of Data</div>
+        <div class="kval" style="color:#f59e0b" id="ky">28</div>
+        <div class="ksub">1987 – 2015</div>
+      </div>
+      <div class="kpi" style="--kc:#ef4444">
+        <div class="kico" style="background:rgba(239,68,68,.14)">☁️</div>
+        <div class="klbl">Avg RSPM (PM10)</div>
+        <div class="kval" style="color:#ef4444" id="krsp">–</div>
+        <div class="ksub">μg/m³ · WHO: 20</div>
+        <div class="kbdg br" id="krsb">⬆ Critical</div>
+      </div>
+      <div class="kpi" style="--kc:#f97316">
+        <div class="kico" style="background:rgba(249,115,22,.14)">🔥</div>
+        <div class="klbl">Avg SO₂</div>
+        <div class="kval" style="color:#f97316" id="kso">–</div>
+        <div class="ksub">μg/m³</div>
+      </div>
+      <div class="kpi" style="--kc:#10b981">
+        <div class="kico" style="background:rgba(16,185,129,.14)">🌿</div>
+        <div class="klbl">Avg NO₂</div>
+        <div class="kval" style="color:#10b981" id="kno">–</div>
+        <div class="ksub">μg/m³ · WHO: 40</div>
+      </div>
+      <div class="kpi" style="--kc:#a78bfa">
+        <div class="kico" style="background:rgba(167,139,250,.14)">🫧</div>
+        <div class="klbl">Avg PM2.5</div>
+        <div class="kval" style="color:#a78bfa" id="kpm">–</div>
+        <div class="ksub">μg/m³ · WHO: 15</div>
+      </div>
+    </div>
+
+    <!-- Pollutant cards -->
+    <div class="sh fu fu3">
+      <div class="st">
+        <div class="sd"></div>Pollutant Overview
+      </div><span class="stag">Avg across all readings</span>
+    </div>
+    <div class="pg fu fu3" id="pcards"></div>
+
+    <!-- Year-over-Year Trend Summary -->
+    <div class="sh fu fu3">
+      <div class="st">
+        <div class="sd"></div>Year-over-Year Trends
+      </div><span class="stag">Decade Comparison</span>
+    </div>
+    <div class="yoy-grid fu fu3" id="yoy-cards"></div>
+
+    <!-- Trends -->
+    <div id="tr" style="padding-top:.5rem">
+      <div class="sh fu fu3">
+        <div class="st">
+          <div class="sd"></div>Pollution Trends Over Time
+        </div><span class="stag">1987–2015 Annual Average</span>
+      </div>
+      <div class="cg fu fu4">
+        <div class="cc c8">
+          <div class="sh" style="margin-bottom:12px">
+            <div class="st" style="font-size:.9rem">
+              <div class="sd"></div>Annual Pollutant Trend
+            </div>
+          </div>
+          <div class="ch cht"><canvas id="cT"></canvas></div>
+        </div>
+        <div class="cc c4">
+          <div class="sh" style="margin-bottom:12px">
+            <div class="st" style="font-size:.9rem">
+              <div class="sd"></div>Pollution by Area Type
+            </div>
+          </div>
+          <div class="ch cht"><canvas id="cTy"></canvas></div>
+        </div>
+      </div>
+      <div class="cg fu fu5">
+        <div class="cc c6">
+          <div class="sh" style="margin-bottom:12px">
+            <div class="st" style="font-size:.9rem">
+              <div class="sd"></div>Monthly Seasonal Pattern
+            </div>
+          </div>
+          <div class="ch"><canvas id="cSe"></canvas></div>
+        </div>
+        <div class="cc c6">
+          <div class="sh" style="margin-bottom:12px">
+            <div class="st" style="font-size:.9rem">
+              <div class="sd"></div>RSPM Value Distribution
+            </div>
+          </div>
+          <div class="ch"><canvas id="cDi"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Pollution Heatmap - Month vs Year -->
+      <div class="cg fu fu5">
+        <div class="cc c12">
+          <div class="sh" style="margin-bottom:12px">
+            <div class="st" style="font-size:.9rem">
+              <div class="sd"></div>Pollution Heatmap — Month × Year (RSPM)
+            </div><span class="stag">Color intensity = avg RSPM</span>
+          </div>
+          <div id="heatmap-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- State Analysis -->
+    <div id="st" style="padding-top:.5rem">
+      <div class="sh fu fu3">
+        <div class="st">
+          <div class="sd"></div>State-wise Analysis
+        </div><span class="stag">Ranked by Avg RSPM</span>
+      </div>
+      <div class="cg fu fu4">
+        <div class="cc c7">
+          <div class="sh" style="margin-bottom:12px">
+            <div class="st" style="font-size:.9rem">
+              <div class="sd"></div>Top Polluted States
+            </div>
+          </div>
+          <div class="ch cht"><canvas id="cSt"></canvas></div>
+        </div>
+        <div class="cc c5">
+          <div class="sh" style="margin-bottom:12px">
+            <div class="st" style="font-size:.9rem">
+              <div class="sd"></div>State Rankings
+            </div>
+          </div>
+          <div class="rl" id="rl"></div>
+        </div>
+      </div>
+      <div class="cg fu fu5">
+        <div class="cc c12">
+          <div class="sh" style="margin-bottom:12px">
+            <div class="st" style="font-size:.9rem">
+              <div class="sd"></div>Top 10 Most Polluted Cities
+            </div>
+          </div>
+          <div class="ch"><canvas id="cCi"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pollutant Deep Dive -->
+    <div id="po" style="padding-top:.5rem">
+      <div class="sh fu fu3">
+        <div class="st">
+          <div class="sd"></div>Pollutant Deep Dive
+        </div><span class="stag">Correlation & Composition</span>
+      </div>
+      <div class="cg fu fu4">
+        <div class="cc c6">
+          <div class="sh" style="margin-bottom:12px">
+            <div class="st" style="font-size:.9rem">
+              <div class="sd"></div>SO₂ vs NO₂ Annual Trend
+            </div>
+          </div>
+          <div class="ch"><canvas id="cSN"></canvas></div>
+        </div>
+        <div class="cc c6">
+          <div class="sh" style="margin-bottom:12px">
+            <div class="st" style="font-size:.9rem">
+              <div class="sd"></div>Relative Pollutant Contribution
+            </div>
+          </div>
+          <div class="ch"><canvas id="cSh"></canvas></div>
+        </div>
+      </div>
+      <div class="cg fu fu5">
+        <div class="cc c6">
+          <div class="sh" style="margin-bottom:12px">
+            <div class="st" style="font-size:.9rem">
+              <div class="sd"></div>RSPM by Decade: Industrial vs Residential
+            </div>
+          </div>
+          <div class="ch chs"><canvas id="cDe"></canvas></div>
+        </div>
+        <div class="cc c6">
+          <div class="sh" style="margin-bottom:12px">
+            <div class="st" style="font-size:.9rem">
+              <div class="sd"></div>Multi-Pollutant Radar — Top 5 States
+            </div>
+          </div>
+          <div class="ch"><canvas id="cRadar"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Insights -->
+    <div id="ins" style="padding-top:.5rem">
+      <div class="sh fu fu3">
+        <div class="st">
+          <div class="sd"></div>Key Insights & Findings
+        </div><span class="stag">Data-Driven Analysis</span>
+      </div>
+      <div class="ig fu fu4" id="ig"></div>
+    </div>
+
+    <!-- Worst Events Table -->
+    <div class="sh fu fu3">
+      <div class="st">
+        <div class="sd"></div>Most Critical Pollution Events
+      </div><span class="stag">Top 20 by RSPM</span>
+    </div>
+    <div class="cc fu fu4" style="margin-bottom:1.8rem;padding:0;overflow:hidden">
+      <div class="tw">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>State</th>
+              <th>City</th>
+              <th>Date</th>
+              <th>Area Type</th>
+              <th>RSPM μg/m³</th>
+              <th>SO₂</th>
+              <th>NO₂</th>
+              <th>AQI</th>
+            </tr>
+          </thead>
+          <tbody id="wtb">
+            <tr>
+              <td colspan="9" style="text-align:center;padding:36px;color:var(--tm)">Loading…</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div id="sm" class="sum fu fu4">
+      <div class="sgrid">
+        <div class="sl">
+          <h2>📘 Project Summary</h2>
+          <p>This <strong>India Air Quality Index (AQI) Dashboard</strong> provides a comprehensive visual analysis of
+            India's air pollution data collected by the Central Pollution Control Board (CPCB) from <strong>1987 to
+              2015</strong>.</p>
+          <p>The dataset spans <strong>435,742+ monitoring records</strong> from hundreds of stations across <strong>37
+              states and Union Territories</strong>, tracking five critical pollutants: SO₂, NO₂, RSPM (PM10), SPM, and
+            PM2.5.</p>
+          <p>Key findings include critical exceedances of WHO guidelines across most states, pronounced seasonal winter
+            peaks, significant industrial pollution hotspots, and improving trends in some states post-2005 due to
+            regulatory interventions.</p>
+          <div class="stags">
+            <span
+              style="padding:4px 12px;border-radius:999px;font-size:.7rem;font-weight:600;border:1px solid rgba(59,130,246,.3);color:#3b82f6;background:rgba(59,130,246,.07)">Data
+              Analytics</span>
+            <span
+              style="padding:4px 12px;border-radius:999px;font-size:.7rem;font-weight:600;border:1px solid rgba(6,182,212,.3);color:#06b6d4;background:rgba(6,182,212,.07)">Air
+              Quality</span>
+            <span
+              style="padding:4px 12px;border-radius:999px;font-size:.7rem;font-weight:600;border:1px solid rgba(139,92,246,.3);color:#8b5cf6;background:rgba(139,92,246,.07)">India
+              1987–2015</span>
+            <span
+              style="padding:4px 12px;border-radius:999px;font-size:.7rem;font-weight:600;border:1px solid rgba(245,158,11,.3);color:#f59e0b;background:rgba(245,158,11,.07)">Environmental
+              Science</span>
+            <span
+              style="padding:4px 12px;border-radius:999px;font-size:.7rem;font-weight:600;border:1px solid rgba(16,185,129,.3);color:#10b981;background:rgba(16,185,129,.07)">435K+
+              Records</span>
+            <span
+              style="padding:4px 12px;border-radius:999px;font-size:.7rem;font-weight:600;border:1px solid rgba(239,68,68,.3);color:#ef4444;background:rgba(239,68,68,.07)">Chart.js
+              · PapaParse</span>
+          </div>
+        </div>
+        <div class="sr">
+          <div class="spec">
+            <div class="spec-ico" style="background:rgba(59,130,246,.14)">📊</div>
+            <div>
+              <div class="spec-l">Dataset Size</div>
+              <div class="spec-v">435,742+ rows · 13 columns</div>
+            </div>
+          </div>
+          <div class="spec">
+            <div class="spec-ico" style="background:rgba(6,182,212,.14)">📅</div>
+            <div>
+              <div class="spec-l">Time Span</div>
+              <div class="spec-v">1987 – 2015 (28 Years)</div>
+            </div>
+          </div>
+          <div class="spec">
+            <div class="spec-ico" style="background:rgba(139,92,246,.14)">☁️</div>
+            <div>
+              <div class="spec-l">Pollutants Tracked</div>
+              <div class="spec-v">SO₂ · NO₂ · RSPM · SPM · PM2.5</div>
+            </div>
+          </div>
+          <div class="spec">
+            <div class="spec-ico" style="background:rgba(245,158,11,.14)">🗺️</div>
+            <div>
+              <div class="spec-l">Geographic Coverage</div>
+              <div class="spec-v">37 States & Union Territories</div>
+            </div>
+          </div>
+          <div class="spec">
+            <div class="spec-ico" style="background:rgba(16,185,129,.14)">🏭</div>
+            <div>
+              <div class="spec-l">Area Types</div>
+              <div class="spec-v">Industrial · Residential · Sensitive</div>
+            </div>
+          </div>
+          <div class="spec">
+            <div class="spec-ico" style="background:rgba(239,68,68,.14)">🔬</div>
+            <div>
+              <div class="spec-l">Data Source</div>
+              <div class="spec-v">Central Pollution Control Board, India</div>
+            </div>
+          </div>
+          <a href="https://hariportfolioo.xyz/" target="_blank" rel="noopener" class="pb3" id="hp2">
+            <span style="font-size:1.3rem">🚀</span>
+            <div>
+              <div
+                style="font-size:.65rem;color:var(--tm);font-weight:700;text-transform:uppercase;letter-spacing:.08em">
+                Built by</div>
+              <div style="font-size:.9rem;color:#60a5fa;font-weight:600">Hari · hariportfolioo.xyz</div>
+            </div>
+            <span style="margin-left:auto;color:var(--cyan);font-size:1.1rem">↗</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="foot">
+      <div class="fl2">🌍 India AQI Dashboard · CPCB India · 1987–2015 · 435,742+ Records · Chart.js & PapaParse</div><a
+        href="https://hariportfolioo.xyz/" target="_blank" rel="noopener" class="fr" id="hp3">Built by Hari ·
+        hariportfolioo.xyz ↗</a>
+    </div>
+  </footer>
+
+  <script>
+    let ALL = [], FILT = [], CH = {};
+    const PC = { so2: { l: 'SO2', f: 'Sulfur Dioxide', c: '#f97316', w: 20 }, no2: { l: 'NO2', f: 'Nitrogen Dioxide', c: '#f59e0b', w: 40 }, rspm: { l: 'RSPM', f: 'Respirable Particulates (PM10)', c: '#ef4444', w: 20 }, spm: { l: 'SPM', f: 'Suspended Particulates', c: '#8b5cf6', w: null }, pm2_5: { l: 'PM2.5', f: 'Fine Particulate Matter', c: '#a78bfa', w: 15 } };
+    const AQC = [{ m: 50, l: 'Good', c: 'ag' }, { m: 100, l: 'Moderate', c: 'am' }, { m: 200, l: 'Unhealthy', c: 'au' }, { m: 300, l: 'Very Unhealthy', c: 'avu' }, { m: Infinity, l: 'Hazardous', c: 'ah' }];
+    const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+    const sn = v => { const n = parseFloat(v); return isFinite(n) && n > 0 ? n : null };
+    const fmt = (n, d = 1) => n == null ? '–' : Number(n).toFixed(d);
+    const aqc = v => { if (v == null) return null; for (const c of AQC) if (v <= c.m) return c; return AQC[AQC.length - 1] };
+    const pr = (p, m) => { document.getElementById('pb').style.width = p + '%'; document.getElementById('lmsg').textContent = m };
+    const goto = id => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    Chart.defaults.color = '#64748b';
+    Chart.defaults.borderColor = 'rgba(59,130,246,0.07)';
+    Chart.defaults.font.family = "'Inter',sans-serif";
+    Chart.defaults.plugins.tooltip.backgroundColor = '#0c1d36';
+    Chart.defaults.plugins.tooltip.borderColor = 'rgba(59,130,246,0.18)';
+    Chart.defaults.plugins.tooltip.borderWidth = 1;
+    Chart.defaults.plugins.tooltip.padding = 11;
+    Chart.defaults.plugins.tooltip.cornerRadius = 9;
+    Chart.defaults.plugins.tooltip.titleColor = '#f1f5f9';
+    Chart.defaults.plugins.tooltip.bodyColor = '#94a3b8';
+    Chart.defaults.plugins.legend.labels.boxWidth = 11;
+    Chart.defaults.plugins.legend.labels.padding = 14;
+
+    window.onload = () => {
+      pr(5, 'Loading 435K+ records…');
+      Papa.parse('data.csv', {
+        download: true, header: true, skipEmptyLines: true, dynamicTyping: false,
+        complete: res => { pr(62, 'Processing ' + res.data.length.toLocaleString() + ' records…'); setTimeout(() => proc(res.data), 50) },
+        error: e => pr(0, 'Error: ' + e.message)
+      });
+    };
+
+    function proc(raw) {
+      pr(74, 'Cleaning and aggregating…');
+      ALL = raw.map(r => ({
+        state: (r.state || '').trim(), loc: (r.location || '').trim(), type: (r.type || '').trim(),
+        date: r.date || '', year: r.date ? parseInt(r.date.split('-')[0]) : null, month: r.date ? parseInt(r.date.split('-')[1]) : null,
+        so2: sn(r.so2), no2: sn(r.no2), rspm: sn(r.rspm), spm: sn(r.spm), pm2_5: sn(r.pm2_5)
+      })).filter(r => r.state && r.year && r.year >= 1985 && r.year <= 2020 && r.state !== 'NA');
+      pr(82, 'Building filters…');
+      bldF(); FILT = [...ALL]; pr(90, 'Rendering visualizations…');
+      setTimeout(() => { upKPI(); rPCards(); rYOY(); rAll(); rIns(); rWorst(); rHeatmap(); pr(100, 'Complete!'); setTimeout(() => { const ld = document.getElementById('loader'); ld.style.opacity = '0'; setTimeout(() => ld.style.display = 'none', 500) }, 350) }, 100);
+    }
+
+    function bldF() {
+      const ss = [...new Set(ALL.map(r => r.state))].sort();
+      const ys = [...new Set(ALL.map(r => r.year).filter(Boolean))].sort();
+      const ts = [...new Set(ALL.map(r => r.type).filter(x => x && x !== 'NA'))].sort();
+      const sf = document.getElementById('fSt'); ss.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sf.appendChild(o) });
+      const yf = document.getElementById('fYr'); ys.forEach(y => { const o = document.createElement('option'); o.value = y; o.textContent = y; yf.appendChild(o) });
+      const tf = document.getElementById('fTy'); ts.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; tf.appendChild(o) });
+    }
+
+    function af() {
+      const s = document.getElementById('fSt').value, y = document.getElementById('fYr').value, t = document.getElementById('fTy').value;
+      FILT = ALL.filter(r => {
+        if (s !== 'all' && r.state !== s) return false;
+        if (y !== 'all' && r.year !== parseInt(y)) return false;
+        if (t !== 'all' && r.type !== t) return false;
+        return true;
+      });
+      upKPI(); rPCards(); rYOY(); rAll(); rIns(); rWorst(); rHeatmap();
+    }
+    function rf() { ['fSt', 'fYr', 'fTy'].forEach(id => document.getElementById(id).value = 'all'); FILT = [...ALL]; af(); }
+
+    function upKPI() {
+      const d = FILT;
+      document.getElementById('kr').textContent = d.length.toLocaleString();
+      document.getElementById('ks').textContent = new Set(d.map(r => r.state)).size;
+      document.getElementById('kc').textContent = new Set(d.map(r => r.loc)).size;
+      const rv = d.map(r => r.rspm).filter(v => v != null), sv = d.map(r => r.so2).filter(v => v != null), nv = d.map(r => r.no2).filter(v => v != null), pv = d.map(r => r.pm2_5).filter(v => v != null);
+      document.getElementById('krsp').textContent = fmt(avg(rv));
+      document.getElementById('kso').textContent = fmt(avg(sv));
+      document.getElementById('kno').textContent = fmt(avg(nv));
+      document.getElementById('kpm').textContent = pv.length ? fmt(avg(pv)) : '–';
+      const ar = avg(rv), b = document.getElementById('krsb');
+      if (ar > 200) { b.textContent = '⬆ Hazardous'; b.className = 'kbdg br' }
+      else if (ar > 100) { b.textContent = '⬆ Very High'; b.className = 'kbdg br' }
+      else if (ar > 50) { b.textContent = '↑ High'; b.className = 'kbdg ba' }
+      else { b.textContent = '✓ Moderate'; b.className = 'kbdg bg' }
+    }
+
+    function rPCards() {
+      const el = document.getElementById('pcards'); el.innerHTML = '';
+      // Use reduce instead of Math.max(...arr) to avoid call stack overflow with 435K records
+      const rspmVals = FILT.map(r => r.rspm).filter(v => v != null);
+      const mxR = rspmVals.length ? rspmVals.reduce((a, b) => a > b ? a : b, 0) : 1;
+      Object.entries(PC).forEach(([k, c]) => {
+        const vals = FILT.map(r => r[k]).filter(v => v != null), a = avg(vals);
+        const pct = vals.length ? Math.min(100, (a / (k === 'rspm' ? mxR : k === 'spm' ? 500 : 80)) * 100) : 0;
+        const card = document.createElement('div');
+        card.className = 'pc';
+        card.onclick = function () { selP(k, this) };
+        card.innerHTML = `
+      <div class="pn" style="color:${c.c}">${c.l}</div><div class="pf">${c.f}</div>
+      <div class="pa" style="color:${c.c}">${fmt(a)}</div>
+      <div class="pu">μg/m³ · ${vals.length.toLocaleString()} readings</div>
+      <div class="pb"><div class="pbf2" style="width:${pct.toFixed(0)}%;background:${c.c}"></div></div>`;
+        el.appendChild(card);
+      });
+    }
+    function selP(k, el) {
+      document.querySelectorAll('.pc').forEach(c => { c.style.borderColor = 'rgba(59,130,246,.12)'; c.style.background = 'var(--glass)' });
+      el.style.borderColor = PC[k].c; el.style.background = `rgba(${k === 'rspm' ? '239,68,68' : k === 'so2' ? '249,115,22' : k === 'no2' ? '245,158,11' : k === 'spm' ? '139,92,246' : '167,139,250'},.08)`;
+    }
+
+    // Year-over-Year trend cards
+    function rYOY() {
+      const el = document.getElementById('yoy-cards'); el.innerHTML = '';
+      const decades = [{ label: '1990s', start: 1990, end: 1999 }, { label: '2000s', start: 2000, end: 2009 }, { label: '2010s', start: 2010, end: 2015 }];
+      const pollutants = [
+        { key: 'rspm', label: 'RSPM (PM10)', color: '#ef4444', icon: '☁️' },
+        { key: 'so2', label: 'SO₂', color: '#f97316', icon: '🔥' },
+        { key: 'no2', label: 'NO₂', color: '#f59e0b', icon: '🌿' },
+        { key: 'spm', label: 'SPM', color: '#8b5cf6', icon: '🫧' }
+      ];
+      pollutants.forEach(p => {
+        const decVals = decades.map(d => {
+          const vals = FILT.filter(r => r.year >= d.start && r.year <= d.end && r[p.key] != null).map(r => r[p.key]);
+          return { label: d.label, avg: avg(vals) };
+        });
+        const first = decVals[0].avg, last = decVals[decVals.length - 1].avg;
+        const change = first > 0 ? ((last - first) / first * 100).toFixed(0) : 0;
+        const trend = change > 0 ? '↑' : '↓';
+        const trendColor = change > 0 ? '#f87171' : '#34d399';
+        el.innerHTML += `<div class="yoy-card">
+      <div class="yoy-label">${p.icon} ${p.label}</div>
+      <div class="yoy-val" style="color:${p.color}">${fmt(last)} <span style="font-size:.7rem;color:${trendColor};font-weight:700">${trend} ${Math.abs(change)}%</span></div>
+      <div class="yoy-sub">${decVals.map(d => `${d.label}: ${fmt(d.avg)}`).join(' → ')}</div>
+      <div style="display:flex;gap:4px;margin-top:8px;align-items:flex-end;height:30px">
+        ${decVals.map(d => { const dMax = decVals.reduce((a, b) => a.avg > b.avg ? a : b).avg || 1; const h = d.avg > 0 ? Math.max(6, (d.avg / dMax) * 30) : 3; return `<div style="flex:1;height:${h}px;background:${p.color};border-radius:3px;opacity:.7"></div>` }).join('')}
+      </div>
+    </div>`;
+      });
+    }
+
+    function byYr(d, p) { const m = {}; d.forEach(r => { if (!r.year || r[p] == null) return; (m[r.year] = m[r.year] || []).push(r[p]) }); return Object.entries(m).sort((a, b) => a[0] - b[0]).map(([y, v]) => ({ y, a: avg(v) })) }
+    function bySt(d, p, n = 15) { const m = {}; d.forEach(r => { if (!r.state || r[p] == null) return; (m[r.state] = m[r.state] || []).push(r[p]) }); return Object.entries(m).map(([s, v]) => ({ s, a: avg(v), n: v.length })).filter(x => x.n > 5).sort((a, b) => b.a - a.a).slice(0, n) }
+    function byCity(d, p, n = 10) { const m = {}; d.forEach(r => { if (!r.loc || r[p] == null) return; (m[r.loc] = m[r.loc] || []).push(r[p]) }); return Object.entries(m).map(([c, v]) => ({ c, a: avg(v), n: v.length })).filter(x => x.n > 5).sort((a, b) => b.a - a.a).slice(0, n) }
+    function byTy(d, p) { const m = {}; d.forEach(r => { if (!r.type || r[p] == null || r.type === 'NA') return; const k = r.type.length > 28 ? r.type.slice(0, 28) + '…' : r.type; (m[k] = m[k] || []).push(r[p]) }); return Object.entries(m).map(([t, v]) => ({ t, a: avg(v) })).sort((a, b) => b.a - a.a) }
+    function byMo(d, p) { const mn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], m = {}; d.forEach(r => { if (!r.month || r[p] == null) return; (m[r.month] = m[r.month] || []).push(r[p]) }); return mn.map((name, i) => ({ mo: name, a: avg(m[i + 1] || []) })) }
+
+    function dc(id) { if (CH[id]) { CH[id].destroy(); delete CH[id] } }
+    function rAll() { ['cT', 'cTy', 'cSe', 'cDi', 'cSt', 'cCi', 'cSN', 'cSh', 'cDe', 'cRadar'].forEach(dc); rT(); rTy(); rSe(); rDi(); rSt(); rRank(); rCi(); rSN(); rSh(); rDe(); rRadar(); }
+
+    function rT() {
+      const so2 = byYr(FILT, 'so2'), no2 = byYr(FILT, 'no2'), rspm = byYr(FILT, 'rspm');
+      const lbs = [...new Set([...so2, ...no2, ...rspm].map(x => x.y))].sort();
+      const gv = (arr, y) => { const f = arr.find(x => x.y == y); return f ? parseFloat(f.a.toFixed(2)) : null };
+      CH['cT'] = new Chart(document.getElementById('cT'), {
+        type: 'line',
+        data: {
+          labels: lbs, datasets: [
+            { label: 'RSPM (PM10)', data: lbs.map(y => gv(rspm, y)), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.09)', tension: .4, fill: true, borderWidth: 2.5, pointRadius: 2.5 },
+            { label: 'NO2', data: lbs.map(y => gv(no2, y)), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.07)', tension: .4, fill: false, borderWidth: 2, pointRadius: 2.5 },
+            { label: 'SO2', data: lbs.map(y => gv(so2, y)), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.07)', tension: .4, fill: false, borderWidth: 2, pointRadius: 2.5 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } },
+          scales: { x: { grid: { color: 'rgba(59,130,246,.05)' }, ticks: { maxTicksLimit: 12 } }, y: { grid: { color: 'rgba(59,130,246,.05)' }, title: { display: true, text: 'μg/m³', color: '#64748b' } } },
+          animation: { duration: 750, easing: 'easeInOutQuart' }
+        }
+      });
+    }
+
+    function rTy() {
+      const types = byTy(FILT, 'rspm');
+      const cols = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#06b6d4', '#ec4899'];
+      CH['cTy'] = new Chart(document.getElementById('cTy'), {
+        type: 'doughnut',
+        data: { labels: types.map(t => t.t), datasets: [{ data: types.map(t => parseFloat(t.a.toFixed(1))), backgroundColor: cols, borderWidth: 2, borderColor: '#030912' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 9 }, padding: 7 } }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} μg/m³` } } }, animation: { animateRotate: true, duration: 900 } }
+      });
+    }
+
+    function rSe() {
+      const months = byMo(FILT, 'rspm');
+      const sc = ['#3b82f6', '#60a5fa', '#06b6d4', '#22c55e', '#84cc16', '#10b981', '#14b8a6', '#22c55e', '#f59e0b', '#ef4444', '#dc2626', '#3b82f6'];
+      CH['cSe'] = new Chart(document.getElementById('cSe'), {
+        type: 'bar',
+        data: { labels: months.map(m => m.mo), datasets: [{ label: 'Avg RSPM', data: months.map(m => parseFloat(m.a.toFixed(1))), backgroundColor: sc.map(c => c + 'bb'), borderRadius: 6, borderSkipped: false }] },
+        options: {
+          responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `RSPM: ${ctx.parsed.y} μg/m³` } } },
+          scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(59,130,246,.05)' }, title: { display: true, text: 'μg/m³' } } }
+        }
+      });
+    }
+
+    function rDi() {
+      const bk = [0, 50, 100, 150, 200, 300, 500, 750, 1000, Infinity];
+      const cnt = new Array(bk.length - 1).fill(0);
+      FILT.forEach(r => { if (r.rspm == null) return; for (let i = 0; i < bk.length - 1; i++) { if (r.rspm >= bk[i] && r.rspm < bk[i + 1]) { cnt[i]++; break } } });
+      const lb = bk.slice(0, -1).map((b, i) => i === bk.length - 2 ? '1000+' : b + '-' + bk[i + 1]);
+      const gc = cnt.map((_, i) => `hsla(${Math.round(120 - i * 15)},78%,52%,0.8)`);
+      CH['cDi'] = new Chart(document.getElementById('cDi'), {
+        type: 'bar',
+        data: { labels: lb, datasets: [{ label: 'Records', data: cnt, backgroundColor: gc, borderRadius: 5 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+          scales: { x: { grid: { display: false }, title: { display: true, text: 'RSPM Range (μg/m³)', color: '#64748b' } }, y: { grid: { color: 'rgba(59,130,246,.05)' }, title: { display: true, text: 'Count', color: '#64748b' } } }
+        }
+      });
+    }
+
+    function rSt() {
+      const states = bySt(FILT, 'rspm', 15); const mx = states[0]?.a || 1;
+      CH['cSt'] = new Chart(document.getElementById('cSt'), {
+        type: 'bar',
+        data: {
+          labels: states.map(s => s.s), datasets: [{
+            label: 'Avg RSPM (μg/m³)', data: states.map(s => parseFloat(s.a.toFixed(1))),
+            backgroundColor: states.map(s => { const p = s.a / mx; return `rgba(${Math.round(239 * p)},${Math.round(68 + 100 * (1 - p))},${Math.round(68 + 100 * (1 - p))},0.76)` }),
+            borderRadius: 6, borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+          scales: { x: { grid: { color: 'rgba(59,130,246,.05)' }, title: { display: true, text: 'Avg RSPM (μg/m³)' } }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } }
+        }
+      });
+    }
+
+    function rRank() {
+      const states = bySt(FILT, 'rspm', 20); const mx = states[0]?.a || 1;
+      const el = document.getElementById('rl'); el.innerHTML = '';
+      const rc = ['#ef4444', '#f97316', '#f59e0b', '#10b981'];
+      states.forEach((s, i) => {
+        const c = rc[i < 5 ? 0 : i < 10 ? 1 : i < 15 ? 2 : 3], pct = (s.a / mx * 100).toFixed(0);
+        const div = document.createElement('div');
+        div.className = 'ri';
+        div.innerHTML = `<div class="rnum" style="background:rgba(${c === '#ef4444' ? '239,68,68' : c === '#f97316' ? '249,115,22' : c === '#f59e0b' ? '245,158,11' : '16,185,129'},.14);color:${c}">${i + 1}</div>
+      <div class="rn">${s.s}</div>
+      <div class="rbw"><div class="rb" style="width:${pct}%;background:${c}"></div></div>
+      <div class="rv">${fmt(s.a, 0)}</div>`;
+        el.appendChild(div);
+      });
+    }
+
+    function rCi() {
+      const cities = byCity(FILT, 'rspm', 10);
+      const gc = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#3b82f6'];
+      CH['cCi'] = new Chart(document.getElementById('cCi'), {
+        type: 'bar',
+        data: { labels: cities.map(c => c.c), datasets: [{ label: 'Avg RSPM (μg/m³)', data: cities.map(c => parseFloat(c.a.toFixed(1))), backgroundColor: gc.slice(0, cities.length).map(c => c + 'bb'), borderRadius: 8, borderSkipped: false }] },
+        options: {
+          responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+          scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(59,130,246,.05)' }, title: { display: true, text: 'Avg RSPM (μg/m³)' } } }
+        }
+      });
+    }
+
+    function rSN() {
+      const so2 = byYr(FILT, 'so2'), no2 = byYr(FILT, 'no2');
+      const lbs = [...new Set([...so2, ...no2].map(x => x.y))].sort();
+      const gv = (arr, y) => { const f = arr.find(x => x.y == y); return f ? parseFloat(f.a.toFixed(2)) : null };
+      CH['cSN'] = new Chart(document.getElementById('cSN'), {
+        type: 'line',
+        data: {
+          labels: lbs, datasets: [
+            { label: 'SO2', data: lbs.map(y => gv(so2, y)), borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,.1)', tension: .4, fill: true, borderWidth: 2.5, pointRadius: 2.5 },
+            { label: 'NO2', data: lbs.map(y => gv(no2, y)), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,.1)', tension: .4, fill: true, borderWidth: 2.5, pointRadius: 2.5 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } },
+          scales: { x: { grid: { color: 'rgba(59,130,246,.05)' }, ticks: { maxTicksLimit: 10 } }, y: { grid: { color: 'rgba(59,130,246,.05)' }, title: { display: true, text: 'μg/m³' } } }
+        }
+      });
+    }
+
+    function rSh() {
+      const avgs = { 'SO2': avg(FILT.map(r => r.so2).filter(v => v != null)), 'NO2': avg(FILT.map(r => r.no2).filter(v => v != null)), 'RSPM': avg(FILT.map(r => r.rspm).filter(v => v != null)), 'SPM': avg(FILT.map(r => r.spm).filter(v => v != null)) };
+      const valid = Object.entries(avgs).filter(([, v]) => v > 0);
+      CH['cSh'] = new Chart(document.getElementById('cSh'), {
+        type: 'polarArea',
+        data: { labels: valid.map(([k]) => k), datasets: [{ data: valid.map(([, v]) => parseFloat(v.toFixed(1))), backgroundColor: ['rgba(249,115,22,.62)', 'rgba(245,158,11,.62)', 'rgba(239,68,68,.62)', 'rgba(139,92,246,.62)'], borderColor: ['#f97316', '#f59e0b', '#ef4444', '#8b5cf6'], borderWidth: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.r} μg/m³` } } } }
+      });
+    }
+
+    function rDe() {
+      const starts = [1990, 2000, 2010];
+      const ind = starts.map(s => avg(FILT.filter(r => r.year >= s && r.year < s + 10 && r.rspm != null && r.type && r.type.toLowerCase().includes('industrial')).map(r => r.rspm)));
+      const res = starts.map(s => avg(FILT.filter(r => r.year >= s && r.year < s + 10 && r.rspm != null && r.type && !r.type.toLowerCase().includes('industrial')).map(r => r.rspm)));
+      CH['cDe'] = new Chart(document.getElementById('cDe'), {
+        type: 'bar',
+        data: {
+          labels: ['1990s', '2000s', '2010s'], datasets: [
+            { label: 'Industrial Areas', data: ind.map(v => parseFloat((v || 0).toFixed(1))), backgroundColor: 'rgba(239,68,68,0.72)', borderRadius: 8 },
+            { label: 'Residential / Other', data: res.map(v => parseFloat((v || 0).toFixed(1))), backgroundColor: 'rgba(59,130,246,0.72)', borderRadius: 8 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } },
+          scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(59,130,246,.05)' }, title: { display: true, text: 'Avg RSPM (μg/m³)' } } }
+        }
+      });
+    }
+
+    // Radar chart for multi-pollutant comparison of top 5 states
+    function rRadar() {
+      const topStates = bySt(FILT, 'rspm', 5);
+      const labels = ['SO2', 'NO2', 'RSPM', 'SPM'];
+      const colors = ['#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#06b6d4'];
+      const datasets = topStates.map((st, i) => {
+        const stData = FILT.filter(r => r.state === st.s);
+        return {
+          label: st.s,
+          data: [avg(stData.map(r => r.so2).filter(v => v != null)), avg(stData.map(r => r.no2).filter(v => v != null)), avg(stData.map(r => r.rspm).filter(v => v != null)), avg(stData.map(r => r.spm).filter(v => v != null))],
+          borderColor: colors[i], backgroundColor: colors[i] + '22', borderWidth: 2, pointRadius: 3, pointBackgroundColor: colors[i]
+        };
+      });
+      CH['cRadar'] = new Chart(document.getElementById('cRadar'), {
+        type: 'radar',
+        data: { labels, datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 9 }, padding: 8 } } },
+          scales: { r: { ticks: { color: '#64748b', backdropColor: 'transparent', font: { size: 8 } }, grid: { color: 'rgba(59,130,246,.08)' }, angleLines: { color: 'rgba(59,130,246,.08)' }, pointLabels: { color: '#94a3b8', font: { size: 10 } } } }
+        }
+      });
+    }
+
+    // Pollution Heatmap — Month × Year
+    function rHeatmap() {
+      const container = document.getElementById('heatmap-container');
+      container.innerHTML = '';
+      const years = [...new Set(FILT.map(r => r.year).filter(Boolean))].sort();
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+      // Build matrix
+      const matrix = {};
+      let globalMax = 0;
+      years.forEach(y => {
+        matrix[y] = {};
+        for (let m = 1; m <= 12; m++) {
+          const vals = FILT.filter(r => r.year === y && r.month === m && r.rspm != null).map(r => r.rspm);
+          const a = avg(vals); matrix[y][m] = a; if (a > globalMax) globalMax = a;
+        }
+      });
+
+      // Color function
+      const heatColor = (v) => {
+        if (!v || v === 0) return 'rgba(255,255,255,.03)';
+        const ratio = Math.min(v / globalMax, 1);
+        if (ratio < 0.25) return `rgba(59,130,246,${0.15 + ratio * 2})`;
+        if (ratio < 0.5) return `rgba(245,158,11,${0.3 + ratio})`;
+        if (ratio < 0.75) return `rgba(249,115,22,${0.4 + ratio * 0.6})`;
+        return `rgba(239,68,68,${0.5 + ratio * 0.5})`;
+      };
+
+      // Header
+      let html = '<div class="heatmap-row"><div class="heatmap-row-label"></div>';
+      months.forEach(m => { html += `<div style="flex:1;text-align:center" class="heatmap-label">${m}</div>` });
+      html += '</div>';
+
+      // Show last 20 years max for readability
+      const displayYears = years.slice(-20);
+      displayYears.forEach(y => {
+        html += `<div class="heatmap-row"><div class="heatmap-row-label">${y}</div>`;
+        for (let m = 1; m <= 12; m++) {
+          const v = matrix[y]?.[m] || 0;
+          html += `<div class="heatmap-cell" style="flex:1;background:${heatColor(v)}" title="${months[m - 1]} ${y}: ${v ? v.toFixed(1) + ' μg/m³' : 'No data'}"></div>`;
+        }
+        html += '</div>';
+      });
+
+      // Legend
+      html += `<div style="display:flex;align-items:center;gap:8px;margin-top:12px;justify-content:center">
+    <span style="font-size:.65rem;color:var(--tm)">Low</span>
+    <div style="width:120px;height:8px;border-radius:4px;background:linear-gradient(90deg,rgba(59,130,246,.3),rgba(245,158,11,.6),rgba(249,115,22,.8),rgba(239,68,68,.95))"></div>
+    <span style="font-size:.65rem;color:var(--tm)">High</span>
+  </div>`;
+
+      container.innerHTML = html;
+    }
+
+    function rIns() {
+      const d = FILT;
+      const sR = bySt(d, 'rspm', 5), cln = bySt(d, 'rspm', 100).filter(x => x.n > 20).slice(-3);
+      const yR = byYr(d, 'rspm');
+      const maxY = yR.reduce((a, b) => a.a > b.a ? a : b, { a: 0, y: '–' });
+      const minY = yR.reduce((a, b) => a.a < b.a ? a : b, { a: Infinity, y: '–' });
+      const wint = avg(d.filter(r => [11, 12, 1, 2].includes(r.month) && r.rspm != null).map(r => r.rspm));
+      const sumr = avg(d.filter(r => [5, 6, 7, 8].includes(r.month) && r.rspm != null).map(r => r.rspm));
+      const indA = avg(d.filter(r => r.type && r.type.toLowerCase().includes('industrial') && r.rspm != null).map(r => r.rspm));
+      const resA = avg(d.filter(r => r.type && !r.type.toLowerCase().includes('industrial') && r.rspm != null).map(r => r.rspm));
+      const excW = d.filter(r => r.rspm != null && r.rspm > 20).length;
+      const totR = d.filter(r => r.rspm != null).length;
+      const excPct = totR ? ((excW / totR) * 100).toFixed(0) : 0;
+      const ratioIR = resA > 0 ? ((indA / resA - 1) * 100).toFixed(0) : 0;
+      const winterRise = sumr > 0 ? ((wint / sumr - 1) * 100).toFixed(0) : 0;
+
+      const ins = [
+        {
+          i: '🏭', c: '#ef4444', bg: 'rgba(239,68,68,.12)', t: `Most Polluted: ${sR[0]?.s || '–'}`,
+          p: `<strong>${sR[0]?.s || '–'}</strong> leads India's pollution index with avg RSPM of <strong>${fmt(sR[0]?.a)} μg/m³</strong> — over <strong>${sR[0]?.a ? (sR[0].a / 20).toFixed(0) : '–'}x</strong> the WHO safe limit. Top 5: ${sR.map(x => x.s).join(', ')}.`
+        },
+        {
+          i: '🌿', c: '#10b981', bg: 'rgba(16,185,129,.12)', t: 'Relatively Cleaner Regions',
+          p: `<strong>${cln[0]?.s || '–'}</strong>, <strong>${cln[1]?.s || '–'}</strong>, and <strong>${cln[2]?.s || '–'}</strong> show significantly lower pollution. Mostly northeastern states and island territories benefit from lower industrialization and better forest cover.`
+        },
+        {
+          i: '📈', c: '#f59e0b', bg: 'rgba(245,158,11,.12)', t: `Peak Pollution Year: ${maxY.y}`,
+          p: `Worst air quality recorded in <strong>${maxY.y}</strong> with avg RSPM of <strong>${fmt(maxY.a)} μg/m³</strong>. The least polluted year was <strong>${minY.y}</strong> at <strong>${fmt(minY.a)} μg/m³</strong>. Reflects India's industrial growth cycle.`
+        },
+        {
+          i: '❄️', c: '#3b82f6', bg: 'rgba(59,130,246,.12)', t: 'Winter Pollution Surge',
+          p: `Winter months (Nov–Feb) show avg RSPM of <strong>${fmt(wint)} μg/m³</strong> vs summer (May–Aug) at <strong>${fmt(sumr)} μg/m³</strong> — a <strong>${winterRise}% surge</strong>. Cold air inversions, crop burning, and heating fuel usage trap pollutants near ground level.`
+        },
+        {
+          i: '🏗️', c: '#f97316', bg: 'rgba(249,115,22,.12)', t: 'Industrial Zones: Far More Toxic',
+          p: `Industrial zones average <strong>${fmt(indA)} μg/m³</strong> RSPM vs <strong>${fmt(resA)} μg/m³</strong> in residential areas — a staggering <strong>${ratioIR}% higher</strong> concentration. Heavy industry, thermal power plants, and chemical factories are the primary drivers.`
+        },
+        {
+          i: '⚠️', c: '#a78bfa', bg: 'rgba(167,139,250,.12)', t: `${excPct}% of All Readings Exceed WHO Limit`,
+          p: `A shocking <strong>${excPct}%</strong> of all RSPM readings surpass the WHO guideline of <strong>20 μg/m³</strong>. This represents an ongoing public health emergency affecting hundreds of millions of Indians and costing the economy billions in healthcare annually.`
+        },
+        {
+          i: '🌫️', c: '#06b6d4', bg: 'rgba(6,182,212,.12)', t: 'PM2.5 — The Invisible Threat',
+          p: `PM2.5 (fine particles below 2.5 micrometers) penetrate deep into lungs and bloodstream. India's PM2.5 levels are typically <strong>5–10x WHO limits</strong>. The WHO estimates air pollution causes over <strong>1.67 million premature deaths</strong> in India annually.`
+        },
+        {
+          i: '📉', c: '#22c55e', bg: 'rgba(34,197,94,.12)', t: 'Post-2005: Signs of Improvement',
+          p: `Several major states show modest RSPM reduction after 2005, coinciding with India's <strong>National Ambient Air Quality Standards (NAAQS) revision</strong>, the National Clean Air Programme (NCAP), and expansion of CNG-based public transport in cities like Delhi.`
+        }
+      ];
+
+      const el = document.getElementById('ig'); el.innerHTML = '';
+      ins.forEach(x => {
+        el.innerHTML += `<div class="ic"><div class="iico" style="background:${x.bg}">${x.i}</div><div class="ib"><h4 style="color:${x.c}">${x.t}</h4><p>${x.p}</p></div></div>`;
+      });
+    }
+
+    function rWorst() {
+      const worst = FILT.filter(r => r.rspm != null).sort((a, b) => b.rspm - a.rspm).slice(0, 20);
+      const tb = document.getElementById('wtb'); tb.innerHTML = '';
+      worst.forEach((r, i) => {
+        const cat = aqc(r.rspm);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+      <td style="color:var(--tm);font-weight:700">${i + 1}</td>
+      <td style="color:var(--tp);font-weight:600">${r.state}</td>
+      <td style="color:var(--ts)">${r.loc}</td>
+      <td style="color:var(--ts)">${r.date}</td>
+      <td style="font-size:.74rem;color:var(--tm)">${r.type}</td>
+      <td style="color:#ef4444;font-weight:800;font-family:'Outfit',sans-serif;font-size:1rem">${fmt(r.rspm, 0)}</td>
+      <td>${fmt(r.so2)}</td>
+      <td>${fmt(r.no2)}</td>
+      <td><span class="aqip ${cat ? cat.c : ''}">${cat ? cat.l : '–'}</span></td>`;
+        tb.appendChild(tr);
+      });
+    }
+  </script>
+</body>
+
+</html>
